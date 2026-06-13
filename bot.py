@@ -10,6 +10,8 @@ from telegram.ext import (
 import os
 import requests
 from dotenv import load_dotenv
+from flask import Flask
+import threading
 
 from services.pinterest import extract_pinterest_video
 from services.tiktok import extract_tiktok_video
@@ -18,6 +20,16 @@ load_dotenv()
 
 TOKEN = os.getenv("BOT_TOKEN")
 
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+@flask_app.route('/health')
+def health():
+    return "Bot is running!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host="0.0.0.0", port=port)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -31,7 +43,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
-
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -39,8 +50,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(
         f"Selected: {query.data.upper()}\n\nNow send me your video link."
     )
-	
-
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
@@ -121,12 +130,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Please send a correct video link from the selected platform."
         )
 
-
+# Create the application
 app = Application.builder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(button_handler))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+print("Bot is starting...")
+
+threading.Thread(target=run_flask, daemon=True).start()
 
 print("Bot is running...")
 app.run_polling()
